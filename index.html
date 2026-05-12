@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DocComment — 簡易ドキュメントレビューツール</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ========== SETUP SCREEN ========== -->
+  <div id="setup-screen" class="screen active">
+    <header class="app-header">
+      <div class="logo-area">
+        <span class="logo-icon">💬</span>
+        <span class="logo-text">DocComment</span>
+      </div>
+      <p class="tagline">ログイン不要 &middot; テキストを貼るだけ &middot; その場でコメント</p>
+    </header>
+
+    <main class="setup-main">
+      <!-- Left pane -->
+      <section class="setup-pane" id="left-pane">
+        <div class="pane-label">STEP 1 &mdash; 元テキストを貼り付け</div>
+        <textarea
+          id="raw-input"
+          class="pane-textarea"
+          placeholder="クリエイターからの提出物をここに貼り付けてください。&#10;&#10;フォーマットがバラバラな構成案・台本でもOKです。"
+          spellcheck="false"
+        ></textarea>
+      </section>
+
+      <!-- Center AI panel -->
+      <section class="ai-panel">
+        <div class="ai-panel-inner">
+          <div class="api-key-wrapper">
+            <label class="api-label" for="api-key">Gemini API Key</label>
+            <input
+              type="password"
+              id="api-key"
+              class="api-input"
+              placeholder="AIza..."
+              autocomplete="off"
+            >
+          </div>
+
+          <!-- Model selects -->
+          <div class="model-select-wrapper">
+            <div class="model-select-group">
+              <label class="api-label" for="format-model-select">成形モデル</label>
+              <select id="format-model-select" class="model-select"></select>
+              <span class="model-hint">正確性重視</span>
+            </div>
+            <div class="model-select-group">
+              <label class="api-label" for="assist-model-select">アシストモデル</label>
+              <select id="assist-model-select" class="model-select"></select>
+              <span class="model-hint">創造性重視</span>
+            </div>
+          </div>
+
+          <button id="ai-format-btn" class="btn btn-ai">
+            <span class="ai-btn-icon" aria-hidden="true">✨</span>
+            <span class="ai-btn-text">AI 自動整形</span>
+          </button>
+          <p class="api-note">APIキーはセッション中のみ保持。<br>共有URLには含まれません。</p>
+          <div id="ai-error" class="ai-error hidden"></div>
+        </div>
+      </section>
+
+      <!-- Right pane -->
+      <section class="setup-pane" id="right-pane">
+        <div class="pane-label">STEP 2 &mdash; タイトルと内容を確認・編集</div>
+        <input
+          type="text"
+          id="doc-title"
+          class="title-input"
+          placeholder="ドキュメントタイトルを入力..."
+          maxlength="100"
+        >
+        <textarea
+          id="formatted-input"
+          class="pane-textarea"
+          placeholder="整形結果がここに表示されます。直接 Markdown を入力・編集することもできます。&#10;&#10;例：&#10;## 構成タイトル&#10;&#10;| テロップ・ナレーション | 想定カット |&#10;|---|---|&#10;| 冒頭のナレーション | 自然の風景カット |"
+          spellcheck="false"
+        ></textarea>
+      </section>
+    </main>
+
+    <footer class="setup-footer">
+      <button id="publish-btn" class="btn btn-publish">
+        ドキュメントを作成してレビューを始める &rarr;
+      </button>
+    </footer>
+  </div>
+
+
+  <!-- ========== VIEWER SCREEN ========== -->
+  <div id="viewer-screen" class="screen">
+    <header class="viewer-header">
+      <div class="viewer-header-left">
+        <button id="back-btn" class="btn btn-ghost">&larr; 編集に戻る</button>
+        <h1 id="viewer-title" class="viewer-title"></h1>
+      </div>
+      <div class="viewer-header-right">
+        <button id="share-btn" class="btn btn-outline">🔗 共有URLをコピー</button>
+      </div>
+    </header>
+
+    <!-- AI Assist Toolbar -->
+    <div id="ai-assist-toolbar" class="ai-assist-toolbar">
+      <span class="toolbar-label">✨ AI アシスト</span>
+      <div class="toolbar-btns">
+        <button class="ai-assist-btn" id="btn-hook">
+          🎣 フック別パターン
+        </button>
+        <button class="ai-assist-btn" id="btn-scene">
+          🎬 シーン詳細を補完
+        </button>
+        <button class="ai-assist-btn" id="btn-regulation">
+          ✅ 薬機法チェック
+        </button>
+      </div>
+      <span id="no-apikey-notice" class="no-apikey-notice hidden">
+        ⚠️ セットアップ画面でAPIキーを入力してください
+      </span>
+    </div>
+
+    <div class="viewer-body">
+      <main class="document-area">
+        <div id="document-content" class="document-content"></div>
+      </main>
+
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <h2 class="sidebar-title">コメント</h2>
+          <span id="comment-count" class="comment-badge">0</span>
+        </div>
+        <div id="comments-list" class="comments-list">
+          <p class="no-comments-msg">テキストを選択してコメントを追加できます</p>
+        </div>
+      </aside>
+    </div>
+
+    <!-- Selection popover -->
+    <div id="selection-popover" class="selection-popover hidden" role="tooltip">
+      <button id="add-comment-btn" class="popover-btn">
+        📝 コメントを追加
+      </button>
+    </div>
+
+    <!-- Comment modal -->
+    <div id="modal-overlay" class="modal-overlay hidden">
+      <div id="comment-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <h3 id="modal-title" class="modal-title">コメントを追加</h3>
+        <input
+          type="text"
+          id="commenter-name"
+          class="modal-input"
+          placeholder="名前（省略可）"
+          maxlength="50"
+        >
+        <textarea
+          id="comment-text"
+          class="modal-textarea"
+          placeholder="修正指示やフィードバックを入力..."
+          rows="4"
+        ></textarea>
+        <div class="modal-actions">
+          <button id="cancel-comment-btn" class="btn btn-ghost">キャンセル</button>
+          <button id="submit-comment-btn" class="btn btn-primary">投稿する</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast notifications -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+  <script src="prompts.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
