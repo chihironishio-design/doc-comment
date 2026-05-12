@@ -188,8 +188,10 @@ async function runAiAssist(action) {
   setAssistBtnLoading(thisBtn, true);
 
   try {
+    // hookは法規制遵守を優先するため温度を低く設定
+    const temperature = action === 'hook' ? 0.4 : 0.7;
     const prompt = PROMPTS[action](state.markdownSource);
-    const result = await callGeminiAPI(prompt, state.apiKey, state.assistModel, 0.7);
+    const result = await callGeminiAPI(prompt, state.apiKey, state.assistModel, temperature);
 
     if (action === 'scene') {
       // 既存テーブルの「想定カット」列を直接埋めるので全文置き換え
